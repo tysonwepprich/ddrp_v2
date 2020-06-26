@@ -31,7 +31,8 @@ ld_pkgs <- lapply(pkgs, library,
                   lib.loc = "/usr/lib64/R/library/", character.only = TRUE)
 
 # Load collection of functions for this model
-source("/usr/local/dds/DDRP_B1/DDRP_v2_funcs.R")
+# source("/usr/local/dds/DDRP_B1/DDRP_v2_funcs.R")
+source("/home/tyson/REPO/ddrp_v2/DDRP_v2_funcs.R")
 
 # Bring in states feature for summary maps (PNG files)
 # Requires these libraries: "mapdata" and "maptools"
@@ -136,29 +137,30 @@ if (!is.na(opts[1])) {
   odd_gen_map <- opts$odd_gen_map
 } else {
   #### * Default values for params, if not provided in command line ####
-  spp           <- "TABS" # Default species to use
+  spp           <- "LBAM" # Default species to use
   forecast_data <- "PRISM" # Forecast data to use (PRISM or NMME)
   start_year    <- "2020" # Year to use
   start_doy     <- 1 # Start day of year          
   end_doy       <- 365 # End day of year - need 365 if voltinism map 
   keep_leap     <- 1 # Should leap year be kept?
-  region_param  <- "CONUS" # Default REGION to use
-  exclusions_stressunits    <- 1 # Turn on/off climate stress unit exclusions
+  region_param  <- "OR" # Default REGION to use
+  exclusions_stressunits    <- 0 # Turn on/off climate stress unit exclusions
   pems          <- 1 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
-  mapE          <- 0 # Make maps for egg stage
-  mapL          <- 0 # Make maps for larval stage
-  mapP          <- 0 # Make maps for pupal stage
-  out_dir       <- "TABS_2020" # Output dir
+  mapE          <- 1 # Make maps for egg stage
+  mapL          <- 1 # Make maps for larval stage
+  mapP          <- 1 # Make maps for pupal stage
+  out_dir       <- "LBAM_2020_OR" # Output dir
   out_option    <- 1 # Output option category
-  ncohort       <- 7 # Number of cohorts to approximate end of OW stage
+  ncohort       <- 3 # Number of cohorts to approximate end of OW stage
   odd_gen_map   <- 0 # Create summary plots for odd gens only (gen1, gen3, ..)
 }
 
 # (2). DIRECTORY INIT ------
 
 #### * Param inputs - species params; thresholds, weather, etc. ####
-params_dir <- "/usr/local/dds/DDRP_B1/spp_params/"
+# params_dir <- "/usr/local/dds/DDRP_B1/spp_params/"
+params_dir <- "/home/tyson/REPO/ddrp_v2/"
 
 #### * Weather inputs and outputs - climate data w/subdirs 4-digit year ####
 # If outdir has 2 consec. numbers, assume webuser; otherwise just use base dir
@@ -176,8 +178,10 @@ cat("\nWORKING DIR: ", prism_dir, "\n")
 # MUST remove .tif files or script will crash during processing because it will 
 # try to analyze previously processed results. 
 
-#output_dir <- paste0("/home/httpd/html/CAPS/", spp, "_cohorts")
-output_dir <- paste0("/usr/local/dds/DDRP_B1/DDRP_results/", out_dir)
+# output_dir <- paste0("/home/httpd/html/CAPS/", spp, "_cohorts")
+# output_dir <- paste0("/usr/local/dds/DDRP_B1/DDRP_results/", out_dir)
+output_dir <- paste0("/home/tyson/REPO/ddrp_v2/DDRP_results/", out_dir)
+
 
 # Remove all files if output_dir exists, or else create output_dir
 if (file.exists(output_dir)) {
