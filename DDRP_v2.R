@@ -59,8 +59,7 @@ if(server == "hopper"){
 
 # Load collection of functions for this model
 # source("/usr/local/dds/DDRP_B1/DDRP_v2_funcs.R")
-source("/home/tyson/REPO/ddrp_v2/DDRP_v2_funcs.R")
-# TYSON
+
 # Load collection of functions for this model
 # source("/usr/local/dds/DDRP_B1/DDRP_v2_funcs.R")
 if(server == "ento"){
@@ -72,7 +71,6 @@ if(server == "grub"){
 if(server == "hopper"){
   source("/usr/local/dds/DDRP_DOD/ddrp_v2/DDRP_v2_funcs.R")
 }
-
 
 # Bring in states feature for summary maps (PNG files)
 # Requires these libraries: "mapdata" and "maptools"
@@ -195,6 +193,9 @@ if (!is.na(opts[1])) {
   keep_leap     <- 0 # Should leap year be kept?
   region_param  <- "OR" # Default REGION to use
   exclusions_stressunits    <- 0 # Turn on/off climate stress unit exclusions
+  out_dir       <- "GCA_test" # Output dir
+  out_option    <- 1 # Output option category
+  ncohort       <- 3 # Number of cohorts to approximate end of OW stage
   pems          <- 0 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
   mapE          <- 1 # Make maps for egg stage
@@ -213,7 +214,6 @@ if (!is.na(opts[1])) {
 
 #### * Param inputs - species params; thresholds, weather, etc. ####
 # params_dir <- "/usr/local/dds/DDRP_B1/spp_params/"
-# params_dir <- "/home/tyson/REPO/ddrp_v2/spp_params/"
 
 if(server == "ento"){
   params_dir <- "/home/tyson/REPO/ddrp_v2/spp_params/" 
@@ -224,7 +224,6 @@ if(server == "grub"){
 if(server == "hopper"){
   params_dir <- "/usr/local/dds/DDRP_DOD/ddrp_v2/spp_params/" 
 }
-
 
 #### * Weather inputs and outputs - climate data w/subdirs 4-digit year ####
 if(start_year > 2020) forecast_data <- "MACA"
@@ -262,7 +261,6 @@ cat("\nWORKING DIR: ", prism_dir, "\n")
 
 # output_dir <- paste0("/home/httpd/html/CAPS/", spp, "_cohorts")
 # output_dir <- paste0("/usr/local/dds/DDRP_B1/DDRP_results/", out_dir)
-# output_dir <- paste0("/home/tyson/REPO/ddrp_v2/DDRP_results/", out_dir)
 if (server == "ento"){
   output_dir <- paste0("/home/tyson/REPO/ddrp_v2/DDRP_results/",
                        out_dir,"/") # Tyson's ENTO
