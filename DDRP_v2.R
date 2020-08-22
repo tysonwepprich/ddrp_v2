@@ -31,7 +31,7 @@ options(echo = FALSE)
 
 # TYSON
 # change this to switch paths for 3 different servers
-server <- "grub" # ento, grub or hopper
+server <- "ento" # ento, grub or hopper
 
 
 # Load the required packages
