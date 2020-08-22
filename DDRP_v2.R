@@ -156,7 +156,9 @@ option_list <- list(
   make_option(c("--cp_mean"), type="numeric", action="store", 
               default=NA, help="critical photoperiod mean"),
   make_option(c("--cp_sd"), type="numeric", action="store", 
-              default=NA, help="std dev of critical photoperiod mean")
+              default=NA, help="std dev of critical photoperiod mean"),
+  make_option(c("--ls_start"), type="integer", action="store", 
+              default=NA, help="1=OW, 2=E, 3=L, 4=P, 5=A")
 )
 
 # Read in commands 
@@ -183,24 +185,22 @@ if (!is.na(opts[1])) {
   do_photo <- opts$do_photo
   cp_mean <- opts$cp_mean
   cp_sd <- opts$cp_sd
+  ls_start <- opts$ls_start
 } else {
   #### * Default values for params, if not provided in command line ####
   spp           <- "GCA" # Default species to use
   forecast_data <- "PRISM" # Forecast data to use (PRISM or NMME)
   start_year    <- 2017 # Year to use
-  start_doy     <- 1 # Start day of year          
+  start_doy     <- 150 # Start day of year          
   end_doy       <- 365 # End day of year - need 365 if voltinism map 
   keep_leap     <- 0 # Should leap year be kept?
   region_param  <- "OR" # Default REGION to use
   exclusions_stressunits    <- 0 # Turn on/off climate stress unit exclusions
-  out_dir       <- "GCA_test" # Output dir
-  out_option    <- 1 # Output option category
-  ncohort       <- 3 # Number of cohorts to approximate end of OW stage
-  pems          <- 0 # Turn on/off pest event maps
+  pems          <- 1 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
   mapE          <- 1 # Make maps for egg stage
-  mapL          <- 0 # Make maps for larval stage
-  mapP          <- 0 # Make maps for pupal stage
+  mapL          <- 1 # Make maps for larval stage
+  mapP          <- 1 # Make maps for pupal stage
   out_dir       <- "GCA_test" # Output dir
   out_option    <- 1 # Output option category
   ncohort       <- 3 # Number of cohorts to approximate end of OW stage
@@ -208,6 +208,7 @@ if (!is.na(opts[1])) {
   do_photo      <- 1 # Use photoperiod diapause modules in daily loop and results
   cp_mean       <- 15 # Critical photoperiod mean
   cp_sd         <- 1 # Standard deviation around cp_mean
+  ls_start      <- 2 # Usually 1 for OW, can be different if introduced mid-year
 }
 
 # (2). DIRECTORY INIT ------
@@ -2254,10 +2255,7 @@ if(do_photo){
                                
                                plotmax <- max(df$value / 1000)
                                
-                               if (plotmax <= 3){
-                                 df$value <- as.factor(round(df$value / 1000 / .25) * .25)
-                               }
-                               if (plotmax > 3 & plotmax < 5){
+                               if (plotmax < 5){
                                  df$value <- as.factor(round(df$value / 1000 / .5) * .5)
                                }
                                # if (plotmax >= 5){
@@ -2268,16 +2266,16 @@ if(do_photo){
                                #   plotmax <- 5
                                # }
                                if (plotmax >= 5){
-                                 df$value[df$value >= 10000] <- 10000
+                                 df$value[df$value >= 6000] <- 6000
                                  df$value <- as.factor(round(df$value / 1000))
                                  levels(df$value)[length(levels(df$value))] <- 
                                    paste0(levels(df$value)[length(levels(df$value))], " or more")
-                                 plotmax <- 10
+                                 plotmax <- 6
                                }
                                
                                p <- Base_map(df) + 
                                  scale_fill_viridis(discrete = TRUE, name = "Generations", 
-                                                    begin = 0, end = plotmax/10) +
+                                                    begin = 0, end = plotmax/6) +
                                  # geom_point(data = sites, aes(x = x, y = y), color = "black", size = 3) +
                                  labs(title = str_wrap(paste(sp,titl), width = 55), 
                                       subtitle = str_wrap(subtitl, width = 75)) +
@@ -2721,6 +2719,9 @@ misc_fls <- grep(list.files(path = output_dir),
 misc_fls <- misc_fls[!(misc_fls %in% c("Misc_output", "Logs_metadata"))]
 invisible(file.copy(misc_fls, paste0(output_dir, "/Misc_output/")))
 invisible(file.remove(misc_fls))
+
+# Tyson: removes tifs to save space
+unlink(list.files(path = output_dir, pattern = glob2rx("*tif$"), recursive = TRUE))
 
 # Wrap up log file and report time for entire model run
 cat("\nMODEL RUN DONE\n", file = Model_rlogging, append = TRUE)

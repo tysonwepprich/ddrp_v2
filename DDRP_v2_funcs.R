@@ -121,7 +121,7 @@ Assign_extent <- function(region_param = paste0(region_param)) {
 # geom_raster is faster than geom_tile
 # Input data are in a data frame (= df) format
 Base_map <- function(df) {
-  if (region_param %in% c("CONUS", "EAST", "CONUSPLUS", "LOCO")) {
+  if (region_param %in% c("CONUSPLUS", "LOCO")) {
     reg.df <- readRDS(paste(params_dir, "na_lines.rds", sep = "/"))
     p <- ggplot(reg.df, aes(x = long, y = lat)) + 
       geom_raster(data = df, aes(x = x, y = y, fill = value)) + 
@@ -267,10 +267,15 @@ DailyLoop <- function(cohort, tile_num, template) {
   
   # Main rasters - these are built upon within daily loop
   DDaccum <- as.matrix(template)
+  # if introduced midyear, make some variation between cohorts here
+  if(ls_start != 1){
+    DDaccum <- DDaccum + seq(-25, 25, length.out = ncohort)[cohort]
+  }
+  
   # Track total degree days accumulated, for a single Lifestage (larvae)
   DDtotal <- as.matrix(template)
   # Track Lifestage for each cell per day (all cells start in OW = stage1)
-  Lifestage <- as.matrix(template) + 1
+  Lifestage <- as.matrix(template) + ls_start
   # Track voltinism per cell per day, starting at 0
   NumGen <- as.matrix(template)
   FullVolt <- as.matrix(template)
@@ -400,7 +405,7 @@ DailyLoop <- function(cohort, tile_num, template) {
     # Voltinism <- as.matrix(template)
     # track diapause decisions (may not happen at same time as reaching OW stage)
     # NewDiap <- as.matrix(template)
-    DiapSens <- as.matrix(template)
+    DiapSens <- as.matrix(template) + ifelse(ls_start == 1, 0, 1)
   }
   
   #### * Step through days ####
@@ -482,26 +487,26 @@ DailyLoop <- function(cohort, tile_num, template) {
           # for that cohort (do NOT use OWeggDD from param file - this is for 
           # DDRP v2)
           PEMe0 <- Cond(PEMe0 == 0 & NumGen == 0 & (DDaccum >= OWEventDD), 
-                          d * (Lifestage == which(stgorder == "OE")), PEMe0)
+                          sublist[d] * (Lifestage == which(stgorder == "OE")), PEMe0)
           }
           # Egg DOYs for when cumDDs > eggEvent threshold 1st gen
           PEMe1 <- Cond(PEMe1 == 0 & NumGen == 1 & (DDaccum >= eggEventDD), 
-                        d * (Lifestage == which(stgorder == "E")), PEMe1) 
+                        sublist[d] * (Lifestage == which(stgorder == "E")), PEMe1) 
         }
         if (PEMnumgens > 1) {
           # Egg DOYs for when cumDDs > eggEvent threshold 2nd gen
           PEMe2 <- Cond(PEMe2 == 0 & NumGen == 2 & (DDaccum >= eggEventDD), 
-                        d * (Lifestage == which(stgorder == "E")), PEMe2)
+                        sublist[d] * (Lifestage == which(stgorder == "E")), PEMe2)
         }
         if (PEMnumgens > 2) {
           # Egg DOYs for when cumDDs > eggEvent threshold 3rd gen
           PEMe3 <- Cond(PEMe3 == 0 & NumGen == 3 & (DDaccum >= eggEventDD), 
-                        d * (Lifestage == which(stgorder == "E")), PEMe3) 
+                        sublist[d] * (Lifestage == which(stgorder == "E")), PEMe3) 
         }
         if (PEMnumgens > 3) {
           # Egg DOYs for when cumDDs > eggEvent threshold 4th gen
           PEMe4 <- Cond(PEMe4 == 0 & NumGen == 4 & (DDaccum >= eggEventDD), 
-                        d * (Lifestage == which(stgorder == "E")), PEMe4) 
+                        sublist[d] * (Lifestage == which(stgorder == "E")), PEMe4) 
         }
       }
       
@@ -513,31 +518,31 @@ DailyLoop <- function(cohort, tile_num, template) {
           # OWlarvae for that cohort (do NOT use OWlarvaeDD from species
           # param file - this is for DDRP v2 only)
             PEMl0 <- Cond(PEMl0 == 0 & NumGen == 0 & (DDaccum >= OWEventDD), 
-                          d * (Lifestage == which(stgorder == "OL")), PEMl0) 
+                          sublist[d] * (Lifestage == which(stgorder == "OL")), PEMl0) 
           # If owstage = egg, then larvae of this OW gen will have to go through 
           # full development 
           } else if (owstage %in% c("OE")) {
             PEMl0 <- Cond(PEMl0 == 0 & NumGen == 0 & (DDaccum >= larvaeEventDD), 
-                          d * (Lifestage == which(stgorder == "L")), PEMl0) 
+                          sublist[d] * (Lifestage == which(stgorder == "L")), PEMl0) 
           }
           # Larvae DOYs for when cumDDs > larvaeEvent threshold 1st gen
           PEMl1 <- Cond(PEMl1 == 0 & NumGen == 1 & (DDaccum >= larvaeEventDD), 
-                        d * (Lifestage == which(stgorder == "L")), PEMl1) 
+                        sublist[d] * (Lifestage == which(stgorder == "L")), PEMl1) 
         }
         if (PEMnumgens > 1) {
           # Larvae DOYs for when cumDDs > larvaeEvent threshold 2nd gen
           PEMl2 <- Cond(PEMl2 == 0 & NumGen == 2 & (DDaccum >= larvaeEventDD), 
-                        d * (Lifestage == which(stgorder == "L")), PEMl2) 
+                        sublist[d] * (Lifestage == which(stgorder == "L")), PEMl2) 
         }
         if (PEMnumgens > 2) {
           # Larvae DOYs for when cumDDs > larvaeEvent threshold 3rd gen
           PEMl3 <- Cond(PEMl3 == 0 & NumGen == 3 & (DDaccum >= larvaeEventDD), 
-                        d * (Lifestage == which(stgorder == "L")), PEMl3) 
+                        sublist[d] * (Lifestage == which(stgorder == "L")), PEMl3) 
         }
         if (PEMnumgens > 3) {
           # Larvae DOYs for when cumDDs > larvaeEvent threshold 4th gen
           PEMl4 <- Cond(PEMl4 == 0 & NumGen == 4 & (DDaccum >= larvaeEventDD), 
-                        d * (Lifestage == which(stgorder == "L")), PEMl4) 
+                        sublist[d] * (Lifestage == which(stgorder == "L")), PEMl4) 
          }
       }
       
@@ -549,31 +554,31 @@ DailyLoop <- function(cohort, tile_num, template) {
             # OWpupae for that cohort (do NOT use OWpupaeDD from species param 
             # file - this is for DDRP v2)
             PEMp0 <- Cond(PEMp0 == 0 & NumGen == 0 & (DDaccum >= OWEventDD), 
-                          d * (Lifestage == which(stgorder == "OP")), PEMp0)
+                          sublist[d] * (Lifestage == which(stgorder == "OP")), PEMp0)
             } else if (owstage %in% c("OE", "OL")) {
             # If owstage = egg or larvae, then pupae of the OW gen will have to 
             # go through full development 
             PEMp0 <- Cond(PEMp0 == 0 & NumGen == 0 & (DDaccum >= pupaeEventDD), 
-                          d * (Lifestage == which(stgorder == "P")), PEMp0) 
+                          sublist[d] * (Lifestage == which(stgorder == "P")), PEMp0) 
             }  
           # Pupae DOYs for when cumDDs > pupaeEvent threshold 1st gen
           PEMp1 <- Cond(PEMp1 == 0 & NumGen == 1 & (DDaccum >= pupaeEventDD), 
-                        d * (Lifestage == which(stgorder == "P")), PEMp1) 
+                        sublist[d] * (Lifestage == which(stgorder == "P")), PEMp1) 
         }
         if (PEMnumgens > 1) {
           # Pupae DOYs for when cumDDs > pupaeEvent threshold 2nd gen
           PEMp2 <- Cond(PEMp2 == 0 & NumGen == 2 & (DDaccum >= pupaeEventDD), 
-                        d * (Lifestage == which(stgorder == "P")), PEMp2) 
+                        sublist[d] * (Lifestage == which(stgorder == "P")), PEMp2) 
         }
         if (PEMnumgens > 2) {
           # Pupae DOYs for when cumDDs > pupaeEvent threshold 3rd gen
           PEMp3 <- Cond(PEMp3 == 0 & NumGen == 3 & (DDaccum >= pupaeEventDD), 
-                        d * (Lifestage == which(stgorder == "P")), PEMp3) 
+                        sublist[d] * (Lifestage == which(stgorder == "P")), PEMp3) 
         }
         if (PEMnumgens > 3) {
           # Pupae DOYs for when cumDDs > pupaeEvent threshold 4th gen
           PEMp4 <- Cond(PEMp4 == 0 & NumGen == 4 & (DDaccum >= pupaeEventDD), 
-                        d * (Lifestage == which(stgorder == "P")), PEMp4) 
+                        sublist[d] * (Lifestage == which(stgorder == "P")), PEMp4) 
         }
       }
       
@@ -585,31 +590,31 @@ DailyLoop <- function(cohort, tile_num, template) {
             # OWadult for that cohort (do NOT use OWadultDD from species param 
             # file - this is for DDRP v2)
             PEMa0 <- Cond(PEMa0 == 0 & NumGen == 0 & (DDaccum >= OWEventDD), 
-                          d * (Lifestage == which(stgorder == "OA")), PEMa0) 
+                          sublist[d] * (Lifestage == which(stgorder == "OA")), PEMa0) 
             } else if (owstage %in% c("OL", "OP")) {
             # If owstage = larvae or pupae, then adults of the OW gen will 
             # have to go through full development 
             PEMa0 <- Cond(PEMa0 == 0 & NumGen == 0 & (DDaccum >= adultEventDD), 
-                          d * (Lifestage == which(stgorder == "A")), PEMa0) 
+                          sublist[d] * (Lifestage == which(stgorder == "A")), PEMa0) 
             }
           # Adult DOYs for when cumDDs > adultEvent threshold 1st gen
           PEMa1 <- Cond(PEMa1 == 0 & NumGen == 1 & (DDaccum >= adultEventDD), 
-                        d * (Lifestage == which(stgorder == "A")), PEMa1) 
+                        sublist[d] * (Lifestage == which(stgorder == "A")), PEMa1) 
         } 
         if (PEMnumgens > 1) {
           # Adult DOYs for when cumDDs > adultEvent threshold 2nd gen
           PEMa2 <- Cond(PEMa2 == 0 & NumGen == 2 & (DDaccum >= adultEventDD), 
-                        d * (Lifestage == which(stgorder == "A")), PEMa2) 
+                        sublist[d] * (Lifestage == which(stgorder == "A")), PEMa2) 
         }
         if (PEMnumgens > 2) {
           # Adult DOYs for when cumDDs > adultEvent threshold 3rd gen
           PEMa3 <- Cond(PEMa3 == 0 & NumGen == 3 & (DDaccum >= adultEventDD), 
-                        d * (Lifestage == which(stgorder == "A")), PEMa3) 
+                        sublist[d] * (Lifestage == which(stgorder == "A")), PEMa3) 
         }
         if (PEMnumgens > 3) {
           # Adult DOYs for when cumDDs > adultEvent threshold 4th gen
           PEMa4 <- Cond(PEMa4 == 0 & NumGen == 4 & (DDaccum >= adultEventDD), 
-                        d * (Lifestage == which(stgorder == "A")), PEMa4) 
+                        sublist[d] * (Lifestage == which(stgorder == "A")), PEMa4) 
         }
       }
       
