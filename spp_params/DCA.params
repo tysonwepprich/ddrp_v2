@@ -1,25 +1,38 @@
 # these are OSU IPPC/PPQ CPHST DDRP_B1 params and values for 
 # DCA, Diorhabda carinulata, tamarisk beetle model in Degs Celsius (C)
-# Last updated in Aug 2019 for DDRP v2 (cohorts)
+# Last updated in Aug 2020 for DDRP v2 (cohorts)
 # southern biotype
   fullname   <- "Diorhabda carinulata"
   pestof     <- "biological control of saltcedar/tamarisk"
   stgorder   <- c("OA","E","L","P", "A") # stgorder changed to 1, 2, 3, 4, 5 in DDRP v2; Tyson's model has "TA" stage
   owstage    <- "OA"   # OW pupae in the soil; no true diapause   
-  eggLDT     <- 11.1   
+  eggLDT     <- 12   
   eggUDT     <- 40     # Unknown, only tested in lab up to 30
-  larvaeLDT  <- 11.1   # same as egg stage
+  larvaeLDT  <- 12   # same as egg stage
   larvaeUDT  <- 40     # nominal upper dev. threshold
-  pupaeLDT   <- 11.1   # same as egg stage
+  pupaeLDT   <- 12   # same as egg stage
   pupaeUDT   <- 40    
-  adultLDT   <- 11.1   
+  adultLDT   <- 12   
   adultUDT   <- 40     
-  eggDD      <- 95    
-  larvaeDD   <- 186   
-  pupDD      <- 188   
+  eggDD      <- 91.4    
+  larvaeDD   <- 176.7   
+  pupDD      <- 174   
   OWadultDD  <- 275   
-  adultDD    <- 51     # time to complete pre-oviposition period
+  adultDD    <- 47.2     # time to complete pre-oviposition period
   calctype   <-"triangle" # similar to sine method upon which model was built
+ 
+ # Pest Event Maps (PEMs) must be turned on as a runtime param for these to get used:
+  PEMnumgens       <- 2     # create PEMS for up to this many generations (max is 4)
+  eggEventDD       <- 90     # PEMs for egg stage is end of stage
+  eggEventLabel    <- "egg hatch" # Label for PEM egg stage
+  larvaeEventDD    <- 150 # PEMs for late larvae stage 
+  larvaeEventLabel <- "peak larval development" # Label for PEM larvae stage
+  pupaeEventDD     <- 173  # PEMs for end pupal stage 
+  pupaeEventLabel  <- "adult emergence" # Label for PEM pupal stage
+  adultEventDD     <- 45  # PEMs for adult stage (1st ovip.) is ca. 22 DDs into stage
+  adultEventLabel  <- "egg laying" # Label for PEM adult stage
+  OWEventP         <- 0.7 # PEMs is (70%) into stage
+  OWEventLabel     <- "Adult emerges (pre-oviposition)" # Label for PEM OWlarvae 
  
 # OW stage emergence parameters (DDRP v2 only)
   distro_mean <- 200

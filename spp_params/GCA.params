@@ -1,26 +1,39 @@
 # these are OSU IPPC/PPQ CPHST DDRP_B1 params and values for 
 #  GCA, Galerucella calmariensis, loosestrife beetle model in Degs Celsius (C)
-# Last updated in July 2019 for DDRP v2 (cohorts)
+# Last updated in Aug 2020 for DDRP v2 (cohorts)
 # southern biotype
-  fullname   <- "Galerucella calmariensis"
+  fullname   <- "Neogalerucella calmariensis"
   pestof     <- "biological control of purple loosestrife"
   stgorder   <- c("OA","E","L","P", "A") # stgorder changed to 1, 2, 3, 4, 5 in DDRP v2; Tyson's model has "TA" stage
   owstage    <- "OA"   # OW pupae in the soil; no true diapause   
-  eggLDT     <- 10   
+  eggLDT     <- 12.2   
   eggUDT     <- 30     # Unknown, only tested in lab up to 30
-  larvaeLDT  <- 10     # same as egg stage
+  larvaeLDT  <- 12.2     # same as egg stage
   larvaeUDT  <- 30     # nominal upper dev. threshold
-  pupaeLDT   <- 10   # same as egg stage
+  pupaeLDT   <- 12.2   # same as egg stage
   pupaeUDT   <- 30    
-  adultLDT   <- 10   
+  adultLDT   <- 12.2   
   adultUDT   <- 30     
-  eggDD      <- 93.3    
-  larvaeDD   <- 136.4   
-  pupDD      <- 137.7   
+  eggDD      <- 87.8    
+  larvaeDD   <- 128.2   
+  pupDD      <- 126.0   
   OWadultDD  <- 100   
-  adultDD    <- 75     # time to complete pre-oviposition period
+  adultDD    <- 72.9     # time to complete pre-oviposition period
   calctype   <-"triangle" # similar to sine method upon which model was built
  
+ # Pest Event Maps (PEMs) must be turned on as a runtime param for these to get used:
+  PEMnumgens       <- 2     # create PEMS for up to this many generations (max is 4)
+  eggEventDD       <- 87     # PEMs for egg stage is end of stage
+  eggEventLabel    <- "egg hatch" # Label for PEM egg stage
+  larvaeEventDD    <- 100 # PEMs for late larvae stage 
+  larvaeEventLabel <- "larval development" # Label for PEM larvae stage
+  pupaeEventDD     <- 125  # PEMs for end pupal stage 
+  pupaeEventLabel  <- "adult emergence" # Label for PEM pupal stage
+  adultEventDD     <- 72  # PEMs for adult stage (1st ovip.) is ca. 22 DDs into stage
+  adultEventLabel  <- "egg laying" # Label for PEM adult stage
+  OWEventP         <- 0.7 # PEMs is (70%) into stage
+  OWEventLabel     <- "Adult emerges (pre-oviposition)" # Label for PEM OWlarvae 
+  
 # OW stage emergence parameters (DDRP v2 only)
   distro_mean <- 100
   distro_var <- 2000

@@ -1,10 +1,10 @@
 # these are OSU IPPC/PPQ CPHST DDRP_B1 params and values for 
 # APH, Aphalara itadori, knotweed psyllid model in Degs Celsius (C)
-# Last updated in August 2019 for DDRP v2 (cohorts)
+# Last updated in August 2020 for DDRP v2 (cohorts)
 # southern biotype
   fullname   <- "Aphalara itadori"
   pestof     <- "biological control of Japanese and Giant knotweed"
-  stgorder   <- c("OA","E","L","P", "A") # stgorder changed to 1, 2, 3, 4, 5 in DDRP v2; Tyson's model has "TA" stage
+  stgorder   <- c("OA","E","L","P", "A") # stgorder changed to 1, 2, 3, 4, 5 in DDRP v2; 
   # P for APH represents late larval stage when photosensitive
   owstage    <- "OA"   # OW pupae in the soil; no true diapause   
   eggLDT     <- 6.9   
@@ -21,6 +21,19 @@
   OWadultDD  <- 306   
   adultDD    <- 70     # time to complete pre-oviposition period
   calctype   <-"triangle" # similar to sine method upon which model was built
+ 
+ # Pest Event Maps (PEMs) must be turned on as a runtime param for these to get used:
+  PEMnumgens       <- 2     # create PEMS for up to this many generations (max is 4)
+  eggEventDD       <- 145     # PEMs for egg stage is end of stage
+  eggEventLabel    <- "egg hatch" # Label for PEM egg stage
+  larvaeEventDD    <- 265 # PEMs for late larvae stage 
+  larvaeEventLabel <- "late larvae photosensitive" # Label for PEM larvae stage
+  pupaeEventDD     <- 130  # PEMs for end pupal stage 
+  pupaeEventLabel  <- "adult emergence" # Label for PEM pupal stage
+  adultEventDD     <- 69  # PEMs for adult stage (1st ovip.) 
+  adultEventLabel  <- "egg laying" # Label for PEM adult stage
+  OWEventP         <- 0.7 # PEMs is (70%) into stage
+  OWEventLabel     <- "Adult emerges (pre-oviposition)" 
  
 # OW stage emergence parameters (DDRP v2 only)
   distro_mean <- 220
