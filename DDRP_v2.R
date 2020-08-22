@@ -31,7 +31,7 @@ options(echo = FALSE)
 
 # TYSON
 # change this to switch paths for 3 different servers
-server <- "grub" # ento, grub or hopper
+server <- "hopper" # ento, grub or hopper
 
 
 # Load the required packages
@@ -151,8 +151,6 @@ option_list <- list(
               default = NA, help = "number of cohorts"),
   make_option(c("--odd_gen_map"), type = "numeric", action = "store", 
               default = NA, help = "0 = off, 1 = on"),
-  make_option(c("--do_photo"), type="integer", action="store", 
-              default=NA, help="0=off, 1=on"),
   make_option(c("--cp_mean"), type="numeric", action="store", 
               default=NA, help="critical photoperiod mean"),
   make_option(c("--cp_sd"), type="numeric", action="store", 
@@ -182,7 +180,6 @@ if (!is.na(opts[1])) {
   out_option <- opts$out_option
   ncohort <- opts$ncohort
   odd_gen_map <- opts$odd_gen_map
-  do_photo <- opts$do_photo
   cp_mean <- opts$cp_mean
   cp_sd <- opts$cp_sd
   ls_start <- opts$ls_start
@@ -205,7 +202,6 @@ if (!is.na(opts[1])) {
   out_option    <- 1 # Output option category
   ncohort       <- 3 # Number of cohorts to approximate end of OW stage
   odd_gen_map   <- 0 # Create summary plots for odd gens only (gen1, gen3, ..)
-  do_photo      <- 1 # Use photoperiod diapause modules in daily loop and results
   cp_mean       <- 15 # Critical photoperiod mean
   cp_sd         <- 1 # Standard deviation around cp_mean
   ls_start      <- 2 # Usually 1 for OW, can be different if introduced mid-year
@@ -2143,7 +2139,6 @@ if (exclusions_stressunits) {
 
 #### * Weight bricks for Diapause/Mismatch; save rasters and summary plots ####
 # beware that AttVolt, Voltinism, and Diapause need to be /1000 first
-if(do_photo){
   if (region_param %in% c("CONUS", "EAST", "CONUSPLUS", "LOCO")) {
     template <- merge(template[[1]], template[[2]], template[[3]], template[[4]])
   }
@@ -2326,7 +2321,6 @@ if(do_photo){
                              } 
                            }
   stopCluster(cl)
-} # close do_photo
 
 
 #### * Lifestage by generation analysis ####

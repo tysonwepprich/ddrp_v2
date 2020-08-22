@@ -395,18 +395,16 @@ DailyLoop <- function(cohort, tile_num, template) {
   }
   
   # Diapause module for photoperiod-sensitive lifecycles
-  if(do_photo){
-    # latitudes for photoperiod model
-    Lats <- as.matrix(init(template, 'y'))
-    # percent of cohort in diapause
-    Diapause <- as.matrix(template)
-    # track voltinism, considering when diapause happens (not same as FullVolt/NumGen)
-    AttVolt <- as.matrix(template)
-    # Voltinism <- as.matrix(template)
-    # track diapause decisions (may not happen at same time as reaching OW stage)
-    # NewDiap <- as.matrix(template)
-    DiapSens <- as.matrix(template) + ifelse(ls_start == 1, 0, 1)
-  }
+  # latitudes for photoperiod model
+  Lats <- as.matrix(init(template, 'y'))
+  # percent of cohort in diapause
+  Diapause <- as.matrix(template)
+  # track voltinism, considering when diapause happens (not same as FullVolt/NumGen)
+  AttVolt <- as.matrix(template)
+  # Voltinism <- as.matrix(template)
+  # track diapause decisions (may not happen at same time as reaching OW stage)
+  # NewDiap <- as.matrix(template)
+  DiapSens <- as.matrix(template) + ifelse(ls_start == 1, 0, 1)
   
   #### * Step through days ####
  # tryCatch(
@@ -424,9 +422,7 @@ DailyLoop <- function(cohort, tile_num, template) {
     }
     
     # If diapause, get raster of daily photoperiod
-    if(do_photo){
       dayhours <- LightHours(Lats, doy = sublist[d], p = 1.5)
-    }
     
     # Assign each raster cell to a Lifestage
     # These three matrices assign physiological parameters by cell
@@ -661,15 +657,9 @@ DailyLoop <- function(cohort, tile_num, template) {
     
     # Changing FullVolt to completing last stage for biocontrol species, 
     # adult diapause preparation is same degree-days as pre-oviposition
-    if(do_photo){
       FullVolt <- FullVolt + (progress == 1 & Lifestage == (length(stgorder))) 
-    }else{
-      # FullVolt means it reaches the OW stage
-      FullVolt <- FullVolt + (progress == 1 & Lifestage == (length(stgorder) - 1)) 
-    }
     
     # Photoperiod-based decisions and tracking diapause and voltinism
-    if(do_photo){
       # AttVolt tracks attempted generations (like NumGen), 
       # but removing those in diapause already
       # Voltinism tracks completed generations (like FullVolt), 
@@ -698,7 +688,6 @@ DailyLoop <- function(cohort, tile_num, template) {
       DiapSens <- Cond(progress == 1 & 
                          Lifestage %in% which(stgorder %in% c("A", "OA")),
                        1, DiapSens) 
-    }
     
     # If progress is 1, then there is progression to the next life stage
     Lifestage <- Lifestage + progress
@@ -824,7 +813,6 @@ DailyLoop <- function(cohort, tile_num, template) {
         }
       }
       # Make bricks for diapause rasters
-      if (do_photo){
         # Convert FullVolt, Diapause, Voltinism matrices to bricks
         mat_list <- list(FullVolt, AttVolt, Diapause)
         ext <- as.data.frame(as.matrix(extent(template)))
@@ -863,7 +851,6 @@ DailyLoop <- function(cohort, tile_num, template) {
         } else {
           Diapause_brick <- addLayer(Diapause_brick, rast_list$Diapause_rast)
         }
-      } # close do_photo
       
     }
    }#,
@@ -934,7 +921,6 @@ DailyLoop <- function(cohort, tile_num, template) {
   }
   
   # Save diapause bricks here
-  if (do_photo){
     # Convert decimals to integer for memory savings as "INT2S" raster
     Diapause_brick_1000 <- round(Diapause_brick * 1000)
     AttVolt_brick_1000 <- round(AttVolt_brick * 1000)
@@ -951,7 +937,6 @@ DailyLoop <- function(cohort, tile_num, template) {
       SaveRaster(Diapause_brick_1000, cohort, NA, "Diapause", "INT2S")    
     }
     #cat("\n### Finished voltinism and diapause raster output cohort", cohort,"###\n\n", file=Model_rlogging, append=TRUE)
-  } 
   
   # Remove .xml files generated w/ .tif files for certain raster bricks
   # Haven't yet figured out a way to prevent these from being created. The
