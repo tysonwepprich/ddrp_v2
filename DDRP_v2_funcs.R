@@ -36,7 +36,10 @@
 # Use switch() (works like a single use hash) 
 Assign_extent <- function(region_param = paste0(region_param)) {
   REGION <- switch(region_param,
+                "CONUSPLUS"    = extent(-131, -63, 24, 55),
                 "CONUS"        = extent(-125.0, -66.5, 24.54, 49.4),
+                "LOCO"         = extent(-119.5, -110, 29, 41),
+                "WESTPLUS"     = extent(-125, -93, 25.5, 50),
                 "WEST"         = extent(-125.0, -102, 31.1892, 49.4),
                 "EAST"         = extent(-106.8, -66.5, 24.54, 49.4),
                 "MIDWEST"      = extent(-104.2, -87, 30, 49.3),
@@ -118,14 +121,24 @@ Assign_extent <- function(region_param = paste0(region_param)) {
 # geom_raster is faster than geom_tile
 # Input data are in a data frame (= df) format
 Base_map <- function(df) {
+  if (region_param %in% c("CONUS", "EAST", "CONUSPLUS", "LOCO")) {
+    reg.df <- readRDS(paste(params_dir, "na_lines.rds", sep = "/"))
+    p <- ggplot(reg.df, aes(x = long, y = lat)) + 
+      geom_raster(data = df, aes(x = x, y = y, fill = value)) + 
+      geom_path(aes(group = group), color = "gray20", lwd = 0.4) +
+      #theme_map(base_size = base_size) +
+      coord_quickmap(xlim = c(REGION@xmin, REGION@xmax), 
+                     ylim = c(REGION@ymin, REGION@ymax), expand = FALSE)
+  }else{
   p <- ggplot(states, aes(x = long, y = lat)) + 
     geom_raster(data = df, aes(x = x, y = y, fill = value)) + 
-    geom_path(aes(group = group), color = "black", lwd = 0.4) +
+    geom_path(aes(group = group), color = "gray20", lwd = 0.4) +
     #theme_map(base_size = base_size) +
     coord_quickmap(xlim = c(REGION@xmin, REGION@xmax), 
                    ylim = c(REGION@ymin, REGION@ymax), expand = FALSE) 
     #coord_cartesian(xlim = c(REGION@xmin, REGION@xmax), 
     #ylim = c(REGION@ymin, REGION@ymax))
+  }
 }
 
 #### (3). CohortDistrib: cohort emergence distribution ####
@@ -260,6 +273,7 @@ DailyLoop <- function(cohort, tile_num, template) {
   Lifestage <- as.matrix(template) + 1
   # Track voltinism per cell per day, starting at 0
   NumGen <- as.matrix(template)
+  FullVolt <- as.matrix(template)
   
   # Additional rasters - created depending on input setting
   if (exclusions_stressunits) {
@@ -373,7 +387,20 @@ DailyLoop <- function(cohort, tile_num, template) {
         PEMa4 <- as.matrix(template)  
       }
     }
-    
+  }
+  
+  # Diapause module for photoperiod-sensitive lifecycles
+  if(do_photo){
+    # latitudes for photoperiod model
+    Lats <- as.matrix(init(template, 'y'))
+    # percent of cohort in diapause
+    Diapause <- as.matrix(template)
+    # track voltinism, considering when diapause happens (not same as FullVolt/NumGen)
+    AttVolt <- as.matrix(template)
+    # Voltinism <- as.matrix(template)
+    # track diapause decisions (may not happen at same time as reaching OW stage)
+    # NewDiap <- as.matrix(template)
+    DiapSens <- as.matrix(template)
   }
   
   #### * Step through days ####
@@ -383,12 +410,17 @@ DailyLoop <- function(cohort, tile_num, template) {
     stage_dd_cohort <- stage_dd[as.integer(cohort), ]  
     
     # Get temperature matrices for the day
-    if (region_param %in% c("CONUS", "EAST")) {
+    if (region_param %in% c("CONUS", "EAST", "CONUSPLUS", "LOCO")) {
       tmax <- as.numeric(tmax_list[[tile_num]][[d]])
       tmin <- as.numeric(tmin_list[[tile_num]][[d]])
     } else {
       tmax <- as.numeric(tmax_list[[d]])
       tmin <- as.numeric(tmin_list[[d]])
+    }
+    
+    # If diapause, get raster of daily photoperiod
+    if(do_photo){
+      dayhours <- LightHours(Lats, doy = sublist[d], p = 1.5)
     }
     
     # Assign each raster cell to a Lifestage
@@ -622,6 +654,47 @@ DailyLoop <- function(cohort, tile_num, template) {
     #cat("No. gen (max): ", max(NumGen, na.rm=T), "\n", file=daily_logFile, 
     #append=TRUE) 
     
+    # Changing FullVolt to completing last stage for biocontrol species, 
+    # adult diapause preparation is same degree-days as pre-oviposition
+    if(do_photo){
+      FullVolt <- FullVolt + (progress == 1 & Lifestage == (length(stgorder))) 
+    }else{
+      # FullVolt means it reaches the OW stage
+      FullVolt <- FullVolt + (progress == 1 & Lifestage == (length(stgorder) - 1)) 
+    }
+    
+    # Photoperiod-based decisions and tracking diapause and voltinism
+    if(do_photo){
+      # AttVolt tracks attempted generations (like NumGen), 
+      # but removing those in diapause already
+      # Voltinism tracks completed generations (like FullVolt), 
+      # but only for those entering diapause succesfully
+      # NewDiap tracks who has decided to diapause, # Is this necessary??
+      # but hasn't completed lifecycle yet (once completed removed from NewDiap)
+      AttVolt <- AttVolt + (1 - Diapause) * 
+        (progress == 1 & Lifestage %in% which(stgorder %in% c("A", "OA")))
+      # Voltinism <- Voltinism + NewDiap * FullVolt * 
+      #   (progress == 1 & Lifestage == (length(stgorder)))
+      # NewDiap <- NewDiap - NewDiap * 
+      #   (progress == 1 & Lifestage == (length(stgorder)))
+      
+      # Estimate diapause decision for photoperiod at day/latitude,
+      # only if sensitive lifestage and hasn't already made diapause decision &
+      # only makes decision once per generation
+      sens_mask <- Cond(Lifestage %in% photo_sens & DiapSens == 1, 1, 0)
+      prop_diap <- round(pnorm(dayhours, cp_mean, cp_sd, lower.tail = FALSE), 4)
+      # NewDiap <- NewDiap + sens_mask * prop_diap * 
+      #   (1 - Diapause) 
+      # (1-Diapause) bc only active insects can make decision
+      Diapause <- Diapause + sens_mask * prop_diap * (1 - Diapause)
+      DiapSens <- Cond(sens_mask == 1, 0, DiapSens) 
+      
+      # Reset diapause sensitivity when reaches new generation
+      DiapSens <- Cond(progress == 1 & 
+                         Lifestage %in% which(stgorder %in% c("A", "OA")),
+                       1, DiapSens) 
+    }
+    
     # If progress is 1, then there is progression to the next life stage
     Lifestage <- Lifestage + progress
     
@@ -745,6 +818,48 @@ DailyLoop <- function(cohort, tile_num, template) {
           rm(rast_list3) # Free up memory
         }
       }
+      # Make bricks for diapause rasters
+      if (do_photo){
+        # Convert FullVolt, Diapause, Voltinism matrices to bricks
+        mat_list <- list(FullVolt, AttVolt, Diapause)
+        ext <- as.data.frame(as.matrix(extent(template)))
+        rast_list <- lapply(mat_list, Mat_to_rast, ext = ext, template = template)
+        names(rast_list) <- c("FullVolt_rast","AttVolt_rast", 
+                              "Diapause_rast")
+        
+        # cat("\n\n### Adding layers to FullVolt brick for cohort", cohort, 
+        # ": doy =", sublist[d], "\n", file=daily_logFile, append=TRUE)
+        if (!exists("FullVolt_brick")){
+          FullVolt_brick <- brick(rast_list$FullVolt_rast, crs = crs)
+        } else {
+          FullVolt_brick <- addLayer(FullVolt_brick, rast_list$FullVolt_rast)
+        }
+        
+        # cat("\n\n### Adding layers to Attempted voltinism brick for cohort", cohort, 
+        # ": doy =", sublist[d], "\n", file=daily_logFile, append=TRUE)
+        if (!exists("AttVolt_brick")){
+          AttVolt_brick <- brick(rast_list$AttVolt_rast, crs = crs)
+        } else {
+          AttVolt_brick <- addLayer(AttVolt_brick, rast_list$AttVolt_rast)
+        }
+        
+        # # cat("\n\n### Adding layers to Voltinism brick for cohort", cohort, 
+        #     # ": doy =", sublist[d], "\n", file=daily_logFile, append=TRUE)
+        # if (!exists("Voltinism_brick")){
+        #   Voltinism_brick <- brick(rast_list$Voltinism_rast, crs = crs)
+        # } else {
+        #   Voltinism_brick <- addLayer(Voltinism_brick, rast_list$Voltinism_rast)
+        # }
+        
+        # cat("\n\n### Adding layers to Diapause brick for cohort", cohort, 
+        # ": doy =", sublist[d], "\n", file=daily_logFile, append=TRUE)
+        if (!exists("Diapause_brick")){
+          Diapause_brick <- brick(rast_list$Diapause_rast, crs = crs)
+        } else {
+          Diapause_brick <- addLayer(Diapause_brick, rast_list$Diapause_rast)
+        }
+      } # close do_photo
+      
     }
    }#,
   # error = function(e) {
@@ -774,7 +889,7 @@ DailyLoop <- function(cohort, tile_num, template) {
     for (i in 1:length(pem_list)) {
       pem_mat <- pem_list[[i]]
       pem_rast <- Mat_to_rast(pem_mat, ext, template)
-      if (region_param %in% c("CONUS", "EAST")) {
+      if (region_param %in% c("CONUS", "EAST", "CONUSPLUS", "LOCO")) {
         SaveRaster(pem_rast, cohort, tile_num, names(pem_list[i]), "INT2U")
       } else {
         SaveRaster(pem_rast, cohort, NA, names(pem_list[i]), "INT2U")
@@ -812,6 +927,26 @@ DailyLoop <- function(cohort, tile_num, template) {
     #cat("\n### Finished climate exclusions and stress units raster output 
     #cohort", cohort, "###\n\n", file = Model_rlogging, append=TRUE)
   }
+  
+  # Save diapause bricks here
+  if (do_photo){
+    # Convert decimals to integer for memory savings as "INT2S" raster
+    Diapause_brick_1000 <- round(Diapause_brick * 1000)
+    AttVolt_brick_1000 <- round(AttVolt_brick * 1000)
+    # Voltinism_brick_1000 <- round(Voltinism_brick * 1000)
+    if (region_param %in% c("CONUS","EAST", "CONUSPLUS", "LOCO")) {
+      SaveRaster(FullVolt_brick, cohort, tile_num, "FullVolt", "INT2S")
+      SaveRaster(AttVolt_brick_1000, cohort, tile_num, "AttVolt", "INT2S")
+      # SaveRaster(Voltinism_brick_1000, cohort, tile_num, "Voltinism", "INT2S")
+      SaveRaster(Diapause_brick_1000, cohort, tile_num, "Diapause", "INT2S")
+    } else {
+      SaveRaster(FullVolt_brick, cohort, NA, "FullVolt", "INT2S")
+      SaveRaster(AttVolt_brick_1000, cohort, NA, "AttVolt", "INT2S")
+      # SaveRaster(Voltinism_brick_1000, cohort, NA, "Voltinism", "INT2S")
+      SaveRaster(Diapause_brick_1000, cohort, NA, "Diapause", "INT2S")    
+    }
+    #cat("\n### Finished voltinism and diapause raster output cohort", cohort,"###\n\n", file=Model_rlogging, append=TRUE)
+  } 
   
   # Remove .xml files generated w/ .tif files for certain raster bricks
   # Haven't yet figured out a way to prevent these from being created. The
@@ -928,7 +1063,7 @@ ExtractBestPRISM <- function(files, forecast_data, keep_leap) {
 Mat_to_rast <- function(m, ext, template) {
   rast <- raster(m, xmn = ext[1,1], xmx = ext[1,2], 
                     ymn = ext[2,1], ymx = ext[2,2])
-  crs <- crs(template)
+  crs(rast) <- crs(template)
   res(rast) <- res(template)
   NAvalue(rast) <- NaN
   return(rast)
@@ -1981,7 +2116,7 @@ RegCluster <- function(value) {
 # outnam = output file name; datatype = number of digits int the 
 # output rasters (see "raster" library specificatoins)
 SaveRaster <- function(r, cohort, tile_num, outnam, datatype) {
-  if (region_param %in% c("CONUS", "EAST")) {
+  if (region_param %in% c("CONUS", "EAST", "CONUSPLUS", "LOCO")) {
     #daily_logFile <- paste0("Daily_loop_cohort", cohort, "_", tile_num, ".txt")
     writeRaster(r, file = paste0(outnam, "_cohort", cohort, "_tile", tile_num),
                 format = "GTiff",  datatype = datatype, overwrite = TRUE)
@@ -2133,3 +2268,20 @@ Weight_rasts <- function(cohort_fls, fl_type) {
   
   return(wtd_sum)
 }
+
+
+# Diapause functions
+
+#### (22). LightHours ####
+# Equation from Forsythe paper gives hours of daylight with twilight inclusion option 
+LightHours <- function(lat, doy, p = 1.5){
+  theta <- 0.2163108 + 
+    2 * atan(0.9671396 * tan(0.00860 * (doy - 186)))
+  phi <- asin(0.39795 * cos(theta))
+  h <- 24 - (24 / pi) * acos(
+    (sin(p * pi / 180) + sin(lat * pi / 180) * sin(phi))/
+      (cos(lat * pi / 180) * cos(phi))
+  )
+  return(h)
+}
+

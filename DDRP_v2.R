@@ -26,23 +26,53 @@
 # 12/16/19: renamed file names and uploaded to GitHub
 # 11/26/19: fixed bug w/ loading 30 yr climate normals
 
-# TEST
-
-
 # DDRP v2
 options(echo = FALSE)
+
+# TYSON
+# change this to switch paths for 3 different servers
+server <- "grub" # ento, grub or hopper
+
 
 # Load the required packages
 pkgs <- c("doParallel", "dplyr", "foreach", "ggplot2", "ggthemes", 
           "lubridate", "mapdata", "mgsub", "optparse", "parallel",
           "purrr", "RColorBrewer", "rgdal", "raster", "readr", "sp", "stringr", 
-          "tidyr", "tictoc", "tools", "toOrdinal")
-ld_pkgs <- lapply(pkgs, library, 
-                  lib.loc = "/usr/lib64/R/library/", character.only = TRUE)
+          "tidyr", "tictoc", "tools", "toOrdinal", "viridis")
+
+# TYSON
+# Library path
+if(server == "ento"){
+  ld_pkgs <- invisible(suppressMessages(suppressWarnings(lapply(pkgs, library,
+                                                                lib.loc = "/home/tyson/R/x86_64-redhat-linux-gnu-library/3.6", character.only = TRUE))))
+}
+if(server == "grub"){
+  ld_pkgs <- invisible(suppressMessages(suppressWarnings(lapply(pkgs, library, 
+                                                                lib.loc = "/usr/lib64/R/library/", character.only = TRUE)))) #GRUB
+}
+if(server == "hopper"){
+  ld_pkgs <- invisible(suppressMessages(suppressWarnings(lapply(pkgs, library,
+                                                                lib.loc = "/usr/local/lib64/R/library/", character.only = TRUE))))
+}
+
+
 
 # Load collection of functions for this model
 # source("/usr/local/dds/DDRP_B1/DDRP_v2_funcs.R")
 source("/home/tyson/REPO/ddrp_v2/DDRP_v2_funcs.R")
+# TYSON
+# Load collection of functions for this model
+# source("/usr/local/dds/DDRP_B1/DDRP_v2_funcs.R")
+if(server == "ento"){
+  source("/home/tyson/REPO/ddrp_v2/DDRP_v2_funcs.R")
+}
+if(server == "grub"){
+  source("/home/tyson/REPO/ddrp_v2/DDRP_v2_funcs.R")
+}
+if(server == "hopper"){
+  source("/usr/local/dds/DDRP_DOD/ddrp_v2/DDRP_v2_funcs.R")
+}
+
 
 # Bring in states feature for summary maps (PNG files)
 # Requires these libraries: "mapdata" and "maptools"
@@ -122,7 +152,13 @@ option_list <- list(
   make_option(c("--ncohort"), type = "integer", action = "store", 
               default = NA, help = "number of cohorts"),
   make_option(c("--odd_gen_map"), type = "numeric", action = "store", 
-              default = NA, help = "0 = off, 1 = on")
+              default = NA, help = "0 = off, 1 = on"),
+  make_option(c("--do_photo"), type="integer", action="store", 
+              default=NA, help="0=off, 1=on"),
+  make_option(c("--cp_mean"), type="numeric", action="store", 
+              default=NA, help="critical photoperiod mean"),
+  make_option(c("--cp_sd"), type="numeric", action="store", 
+              default=NA, help="std dev of critical photoperiod mean")
 )
 
 # Read in commands 
@@ -146,41 +182,76 @@ if (!is.na(opts[1])) {
   out_option <- opts$out_option
   ncohort <- opts$ncohort
   odd_gen_map <- opts$odd_gen_map
+  do_photo <- opts$do_photo
+  cp_mean <- opts$cp_mean
+  cp_sd <- opts$cp_sd
 } else {
   #### * Default values for params, if not provided in command line ####
-  spp           <- "LBAM" # Default species to use
+  spp           <- "GCA" # Default species to use
   forecast_data <- "PRISM" # Forecast data to use (PRISM or NMME)
-  start_year    <- "2012" # Year to use
+  start_year    <- 2017 # Year to use
   start_doy     <- 1 # Start day of year          
   end_doy       <- 365 # End day of year - need 365 if voltinism map 
-  keep_leap     <- 1 # Should leap year be kept?
+  keep_leap     <- 0 # Should leap year be kept?
   region_param  <- "OR" # Default REGION to use
   exclusions_stressunits    <- 0 # Turn on/off climate stress unit exclusions
-  pems          <- 1 # Turn on/off pest event maps
+  pems          <- 0 # Turn on/off pest event maps
   mapA          <- 1 # Make maps for adult stage
   mapE          <- 1 # Make maps for egg stage
-  mapL          <- 1 # Make maps for larval stage
-  mapP          <- 1 # Make maps for pupal stage
-  out_dir       <- "LBAM_2020_OR" # Output dir
+  mapL          <- 0 # Make maps for larval stage
+  mapP          <- 0 # Make maps for pupal stage
+  out_dir       <- "GCA_test" # Output dir
   out_option    <- 1 # Output option category
   ncohort       <- 3 # Number of cohorts to approximate end of OW stage
   odd_gen_map   <- 0 # Create summary plots for odd gens only (gen1, gen3, ..)
+  do_photo      <- 1 # Use photoperiod diapause modules in daily loop and results
+  cp_mean       <- 15 # Critical photoperiod mean
+  cp_sd         <- 1 # Standard deviation around cp_mean
 }
 
 # (2). DIRECTORY INIT ------
 
 #### * Param inputs - species params; thresholds, weather, etc. ####
 # params_dir <- "/usr/local/dds/DDRP_B1/spp_params/"
-params_dir <- "/home/tyson/REPO/ddrp_v2/"
+# params_dir <- "/home/tyson/REPO/ddrp_v2/spp_params/"
+
+if(server == "ento"){
+  params_dir <- "/home/tyson/REPO/ddrp_v2/spp_params/" 
+}
+if(server == "grub"){
+  params_dir <- "/home/tyson/REPO/ddrp_v2/spp_params/" 
+}
+if(server == "hopper"){
+  params_dir <- "/usr/local/dds/DDRP_DOD/ddrp_v2/spp_params/" 
+}
+
 
 #### * Weather inputs and outputs - climate data w/subdirs 4-digit year ####
-# If outdir has 2 consec. numbers, assume webuser; otherwise just use base dir
-#if (grepl("16", start_year, perl = TRUE)) {
-#  base_dir <- "/mnt/ssd1/PRISM/"
-#} else {
+if(start_year > 2020) forecast_data <- "MACA"
+if(region_param %in% c("CONUSPLUS", "WESTPLUS", "LOCO")) forecast_data <- "DAYMET"
+if(end_doy == 366) end_doy <- 365 # Len's hopper "datetoday" function gives 366 even in non-leap years
+
+
+if(forecast_data == "PRISM"){
   base_dir <- "/data/PRISM/"
-#}
-prism_dir <- paste0(base_dir, start_year)
+  prism_dir <- paste0(base_dir, start_year)
+  raster_crs <- "+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0 "
+}
+
+if(forecast_data == "DAYMET"){
+  # North America Daymet data
+  base_dir <- "/home/tyson/REPO/ddrp-cohorts-v1/daymet_na4k/"
+  prism_dir <- paste0(base_dir, start_year)
+  raster_crs <- "+proj=longlat +datum=NAD83 +no_defs +ellps=GRS80 +towgs84=0,0,0" 
+}
+
+if(forecast_data == "MACA"){
+  base_dir <- "/home/macav2metdata/GFDL-ESM2M/"
+  prism_dir <- paste0(base_dir, start_year)
+  raster_crs <- "+proj=longlat +pm=0 +a=6378137 +rf=298.257223563" 
+}
+
+
 
 cat("\nBASE DIR: ", base_dir, "\n")
 cat("\nWORKING DIR: ", prism_dir, "\n")
@@ -191,7 +262,18 @@ cat("\nWORKING DIR: ", prism_dir, "\n")
 
 # output_dir <- paste0("/home/httpd/html/CAPS/", spp, "_cohorts")
 # output_dir <- paste0("/usr/local/dds/DDRP_B1/DDRP_results/", out_dir)
-output_dir <- paste0("/home/tyson/REPO/ddrp_v2/DDRP_results/", out_dir)
+# output_dir <- paste0("/home/tyson/REPO/ddrp_v2/DDRP_results/", out_dir)
+if (server == "ento"){
+  output_dir <- paste0("/home/tyson/REPO/ddrp_v2/DDRP_results/",
+                       out_dir,"/") # Tyson's ENTO
+}
+if (server == "grub"){
+  output_dir <- paste0("/home/tyson/REPO/ddrp_v2/DDRP_results/",
+                       out_dir,"/") # Tyson's GRUB
+}
+if (server == "hopper"){
+  output_dir <- paste0("/home/httpd/html/dodtmp/", out_dir) # Tyson's HOPPER
+}
 
 
 # Remove all files if output_dir exists, or else create output_dir
@@ -225,6 +307,7 @@ cat(str_wrap(paste0("EXISTING OUTPUT DIR: ", output_dir,
 
 # Push out a message file with all R error messages
 msg <- file(paste0(output_dir, "/Logs_metadata/rmessages.txt"), open = "wt")
+
 sink(msg, type = "message")
 
 # (3). PARAMETER AND SETTINGS SETUP ----- 
@@ -259,32 +342,32 @@ if (!grepl("[A-z]", start_year)) {
   start_year <- "30yr" # This needs to be changed depending on folder name
 }
 
-# Set up start and stop day of year depending on whether it's a leap year or
-# not (need to modify the last day of the year if the year is a leap year 
-# and user wants to include it)
-# This does not apply to 30 yr climate data, which would not have a numeric
-# start year
-if (is.numeric(start_year)) {
-  
-  if (start_year %% 4 == 0 & keep_leap == 1) {
-    cat(str_wrap(paste0(start_year, " is a leap year and leap day (2/29) will be 
-                 included in the model"), width = 80), "\n", 
-        file = Model_rlogging, append = TRUE)
-    
-    # Need to add an extra day onto year if all 365 days are being included
-    if (end_doy == 365) {
-      end_doy <- 366
-    }
-    
-  } else if (start_year %% 4 == 0 & keep_leap == 0) {
-     cat(str_wrap(paste0(start_year, " is a leap year but leap day (2/29) will 
-                        not be included in the model"), width = 80), "\n", 
-        file = Model_rlogging, append = TRUE)
-  } else if (start_year %% 4 != 0) {
-    cat(start_year, "is not a leap year - ignoring 'keep_leap' parameter\n", 
-        file = Model_rlogging, append = TRUE)
-  }
-}
+# # Set up start and stop day of year depending on whether it's a leap year or
+# # not (need to modify the last day of the year if the year is a leap year 
+# # and user wants to include it)
+# # This does not apply to 30 yr climate data, which would not have a numeric
+# # start year
+# if (is.numeric(start_year)) {
+#   
+#   if (start_year %% 4 == 0 & keep_leap == 1) {
+#     cat(str_wrap(paste0(start_year, " is a leap year and leap day (2/29) will be 
+#                  included in the model"), width = 80), "\n", 
+#         file = Model_rlogging, append = TRUE)
+#     
+#     # Need to add an extra day onto year if all 365 days are being included
+#     if (end_doy == 365) {
+#       end_doy <- 366
+#     }
+#     
+#   } else if (start_year %% 4 == 0 & keep_leap == 0) {
+#      cat(str_wrap(paste0(start_year, " is a leap year but leap day (2/29) will 
+#                         not be included in the model"), width = 80), "\n", 
+#         file = Model_rlogging, append = TRUE)
+#   } else if (start_year %% 4 != 0) {
+#     cat(start_year, "is not a leap year - ignoring 'keep_leap' parameter\n", 
+#         file = Model_rlogging, append = TRUE)
+#   }
+# }
 
 # Check for appropriate command line parameters
 # Exit program if no pest event maps have been specified but users want pest
@@ -299,7 +382,7 @@ if (pems == 1 & !(1 %in% c(mapA, mapE, mapL, mapP))) {
 }
 
 # Exit program if an incorrect sampling frequency has been specified
-if (out_option %in% !c(1, 2, 3, 4, 5, 6)) {
+if (!(out_option %in% c(0, 1, 2, 3, 4, 5, 6))) {
   cat("Out_option =", out_option, "is unacceptable; exiting program\n", 
       file = Model_rlogging, append = TRUE)
   cat("Out_option =", out_option, "is unacceptable; exiting program\n")
@@ -509,34 +592,84 @@ cat("\nDone writing metadata file\n\n", forecast_data, " DATA PROCESSING\n",
 # Weather inputs and outputs - PRISM climate data w/subdirs 4-digit year
 # New feature - choose whether to use PRISM or NMME for weather forecasts 
 # (forecast_data = PRISM, or forecast_data = NMME)
-tminfiles <- list.files(path = prism_dir, 
-                        pattern = glob2rx(paste0("*PRISM_tmin_*", 
-                                                 start_year, "*.bil$*")), 
-                        all.files = FALSE, full.names = TRUE, recursive = TRUE)
-if (length(tminfiles) == 0) {
-  cat("Could not find tmin files - exiting program\n", 
-      file = Model_rlogging, append = TRUE) 
-  cat("Could not find tmin files - exiting program\n") 
-  q()
+if(forecast_data %in% c("PRISM", "NMME")){
+  tminfiles <- list.files(path = prism_dir,
+                          pattern = glob2rx(paste0("*PRISM_tmin_*",
+                                                   start_year, "*.bil$*")),
+                          all.files = FALSE, full.names = TRUE, recursive = TRUE)
+  if (length(tminfiles) == 0) {
+    cat("Could not find tmin files - exiting program\n", 
+        file = Model_rlogging, append = TRUE) 
+    cat("Could not find tmin files - exiting program\n") 
+    q()
+  }
+  tminfiles <- ExtractBestPRISM(tminfiles, forecast_data, 
+                                keep_leap)[start_doy:end_doy]
+  
+  tmaxfiles <- list.files(path = prism_dir,
+                          pattern = glob2rx(paste0("*PRISM_tmax_*",
+                                                   start_year, "*.bil$*")),
+                          all.files = FALSE, full.names = TRUE, recursive = TRUE)
+  if (length(tmaxfiles) == 0) {
+    cat("Could not find tmax files - exiting program\n", 
+        file = Model_rlogging, append = TRUE) 
+    cat("Could not find tmax files - exiting program\n") 
+    q()
+  }
+  tmaxfiles <- ExtractBestPRISM(tmaxfiles, forecast_data, 
+                                keep_leap) [start_doy:end_doy]
 }
 
-tminfiles <- ExtractBestPRISM(tminfiles, forecast_data, 
-                              keep_leap)[start_doy:end_doy]
 
-tmaxfiles <- list.files(path = prism_dir, 
-                        pattern = glob2rx(paste0("*PRISM_tmax_*",
-                                                 start_year, "*.bil$*")), 
-                        all.files = FALSE, full.names = TRUE, recursive = TRUE)
 
-if (length(tmaxfiles) == 0) {
-  cat("Could not find tmax files - exiting program\n", 
-      file = Model_rlogging, append = TRUE) 
-  cat("Could not find tmax files - exiting program\n") 
-  q()
+if(forecast_data == "MACA"){
+  tminfiles <- list.files(path = prism_dir,
+                          pattern = glob2rx(paste0("*MACAV2_tmin_*",
+                                                   start_year, "*.grd$*")),
+                          all.files = FALSE, full.names = TRUE, recursive = TRUE)[start_doy:end_doy]
+  if (length(tminfiles) == 0) {
+    cat("Could not find tmin files - exiting program\n", 
+        file = Model_rlogging, append = TRUE) 
+    cat("Could not find tmin files - exiting program\n") 
+    q()
+  }
+  
+  tmaxfiles <- list.files(path = prism_dir,
+                          pattern = glob2rx(paste0("*MACAV2_tmax_*",
+                                                   start_year, "*.grd$*")),
+                          all.files = FALSE, full.names = TRUE, recursive = TRUE)[start_doy:end_doy]
+  if (length(tmaxfiles) == 0) {
+    cat("Could not find tmax files - exiting program\n", 
+        file = Model_rlogging, append = TRUE) 
+    cat("Could not find tmax files - exiting program\n") 
+    q()
+  }
 }
 
-tmaxfiles <- ExtractBestPRISM(tmaxfiles, forecast_data, 
-                              keep_leap) [start_doy:end_doy]
+if(forecast_data == "DAYMET"){
+  
+  tminfiles <- list.files(path = prism_dir,
+                          pattern = glob2rx(paste0("*DAYMET_tmin_*",
+                                                   start_year, "*.grd$*")),
+                          all.files = FALSE, full.names = TRUE, recursive = TRUE)[start_doy:end_doy]
+  if (length(tminfiles) == 0) {
+    cat("Could not find tmin files - exiting program\n", 
+        file = Model_rlogging, append = TRUE) 
+    cat("Could not find tmin files - exiting program\n") 
+    q()
+  }
+  
+  tmaxfiles <- list.files(path = prism_dir,
+                          pattern = glob2rx(paste0("*DAYMET_tmax_*",
+                                                   start_year, "*.grd$*")),
+                          all.files = FALSE, full.names = TRUE, recursive = TRUE)[start_doy:end_doy]
+  if (length(tmaxfiles) == 0) {
+    cat("Could not find tmax files - exiting program\n", 
+        file = Model_rlogging, append = TRUE) 
+    cat("Could not find tmax files - exiting program\n") 
+    q()
+  }
+}
 
 ## Extract date from temperature files using regex pattern matching
 dats <- unique(regmatches(tminfiles, regexpr(pattern = "[0-9]{8}", 
@@ -544,7 +677,9 @@ dats <- unique(regmatches(tminfiles, regexpr(pattern = "[0-9]{8}",
 
 # Specify sampling frequency (how many days until output maps are generated?)
 # This feature may be removed in production version
-if (out_option == 1) {
+if (out_option == 0) {
+  sample_freq <- 61 # Bimonthly maps
+} else if (out_option == 1) {  
   sample_freq <- 30 # Monthly maps
 } else if (out_option == 2) {
   sample_freq <- 14  # Biweekly maps
@@ -608,6 +743,8 @@ REGION <- Assign_extent(region_param) # Bounding box
 template <- crop(raster(tminfiles[1]), REGION) # Template for cropping
 template[!is.na(template)] <- 0
 dataType(template) <- "INT2U"
+crs1 <- crs(raster_crs)
+crs(template) <- crs1
 
 #### * If CONUS or EAST, split template into tiles (and run in parallel)
 # Benefit of tiles is lost for smaller regions, so these are not split
@@ -627,7 +764,7 @@ ncores <- detectCores()
 # overloaded
 RegCluster(round(ncores/4))
 
-if (region_param %in% c("CONUS", "EAST")) {
+if (region_param %in% c("CONUS", "EAST", "CONUSPLUS", "LOCO")) {
   # Split template (2 pieces per side)
   tile_list <- SplitRas(template, ppside = 2, save = FALSE, plot = FALSE) 
   tile_n <- 1:length(tile_list) # How many tiles?
@@ -699,7 +836,7 @@ if (grepl("Windows", Sys.info()[1])) {
 
 # Split cohorts into smaller chunks for CONUS and EAST to avoid overloading 
 # memory when running in parallel.
-if (region_param %in% c("CONUS", "EAST")) {
+if (region_param %in% c("CONUS", "EAST", "CONUSPLUS", "LOCO")) {
   cohort_chunks <- split(1:ncohort, ceiling(1:length(1:ncohort)/2)) 
 } else {
   cohort_chunks <- split(1:ncohort, ceiling(1:length(1:ncohort)/7))
@@ -723,7 +860,7 @@ tryCatch(
     # If the region is CONUS or EAST, then both cohorts and tiles will be run in
     # parallel. To avoid overloading the server, mc.cores = 4 (for the 4 tiles,
     # which keeps load at appropriate level. If a smaller 
-    if (region_param %in% c("CONUS", "EAST")) {
+    if (region_param %in% c("CONUS", "EAST", "CONUSPLUS", "LOCO")) {
 
       # Total number of nodes is mc.cores * 2 because use mclapply twice in loop
       for (c in cohort_chunks) {
@@ -778,7 +915,7 @@ tryCatch(
 })
 
 # Free up memory - delete unneeded large objects
-rm(DailyLoop, template, tmaxfiles, tmax_list, tminfiles, tmin_list)
+rm(DailyLoop, tmaxfiles, tmax_list, tminfiles, tmin_list)
 
 # Document daily loop execution time
 loop_exectime <- toc(quiet = TRUE)
@@ -800,7 +937,7 @@ dir.create("Misc_output")
 
 #### * If CONUS or EAST, merge and delete tiles ####
 # If CONUS or EAST, merge the tiles
-if (region_param %in% c("CONUS", "EAST")) {
+if (region_param %in% c("CONUS", "EAST", "CONUSPLUS", "LOCO")) {
   cat("\nMerging tiles for", region_param, "\n\n", 
       file = Model_rlogging, append = TRUE)
   cat("\nMerging tiles for", region_param, "\n")
@@ -853,7 +990,7 @@ if (region_param %in% c("CONUS", "EAST")) {
 
 # If CONUS or EAST, remove tile files, but first check that merged files 
 # exist for each type (e.g., Lifestage, NumGen, ...)
-if (region_param %in% c("CONUS", "EAST")) {
+if (region_param %in% c("CONUS", "EAST", "CONUSPLUS", "LOCO")) {
   cat("\nDeleting tiles for", region_param, "\n\n", 
       file = Model_rlogging, append = TRUE)
   cat("\nDeleting tiles for", region_param, "\n")
@@ -2004,6 +2141,197 @@ if (exclusions_stressunits) {
   cat("\nDone with summary maps for NumGen\n\n", str_wrap("ANALYSIS: LIFESTAGE 
       WITH NUMBER OF GENS.\n\n"), sep = "")
 }
+
+#### * Weight bricks for Diapause/Mismatch; save rasters and summary plots ####
+# beware that AttVolt, Voltinism, and Diapause need to be /1000 first
+if(do_photo){
+  if (region_param %in% c("CONUS", "EAST", "CONUSPLUS", "LOCO")) {
+    template <- merge(template[[1]], template[[2]], template[[3]], template[[4]])
+  }
+  
+  
+  FullVolt_fls <- list.files(pattern = glob2rx("*FullVolt_*.tif$"))
+  AttVolt_fls <- list.files(pattern = glob2rx("*AttVolt_*.tif$"))
+  # Voltinism_fls <- list.files(pattern = glob2rx("*Voltinism_*.tif$"))
+  Diapause_fls <- list.files(pattern = glob2rx("*Diapause_*.tif$"))
+  
+  # Calculate the highest generation to occur across all FullVolt bricks
+  maxgens <- max(unlist(lapply(FullVolt_fls, 
+                               function(x) { maxValue(brick(x)) })))
+  maxgens2 <- max(unlist(lapply(AttVolt_fls, 
+                                function(x) { maxValue(brick(x)/1000) })))
+  maxgens <- ceiling(round(maxgens, maxgens2))
+  
+  # Create derived rasters (Mismatch) for each cohort before weighting
+  RegCluster(ncohort)
+  FullVolt_wtd_byGen <- foreach(coh = as.list(1:ncohort), 
+                               .packages = pkgs, .inorder = TRUE) %dopar% {
+                                 Mismatch <- 1000 * (brick(AttVolt_fls[coh])/1000 - brick(FullVolt_fls[coh]))
+                                 SaveRaster2(Mismatch, paste0("Mismatch_cohort", coh), "INT2S", "Mismatch")
+                               }
+  stopCluster(cl)
+  
+  Mismatch_fls <- list.files(pattern = glob2rx("*Mismatch_*.tif$"))
+  
+  
+  # Weight diapause stuff
+  to_weight <- list(FullVolt_fls, AttVolt_fls, Diapause_fls, Mismatch_fls)
+  RegCluster(ncohort)
+  Diap_wtd_fls <- foreach(index = 1:4, 
+                          .packages = pkgs, 
+                          .inorder = FALSE) %dopar% {
+                            fls <- to_weight[[index]]
+                            if(index == 1){ # FullVolt not multiplied by 1000 like others
+                              Ras_weighted <- mapply(function(x,y) { 
+                                round(brick(x) * y * 1000)
+                              }, x=fls, y=relpopsize)
+                            }else{
+                              Ras_weighted <- mapply(function(x,y) { 
+                                round(brick(x) * y)
+                              }, x=fls, y=relpopsize)
+                            }
+                            Ras_weighted_sum <- Reduce("+", Ras_weighted)
+                            SaveRaster2(Ras_weighted_sum, 
+                                        paste(c("FullVolt", "AttVolt", "Diapause", "Mismatch")[index], 
+                                              "all", "weighted", sep="_"), 
+                                        c("INT2U", "INT2U", "INT2U", "INT2S")[index], " ")
+                            return(paste0(paste(c("FullVolt", "AttVolt", "Diapause", "Mismatch")[index], 
+                                                "all", "weighted", sep="_"), ".tif"))
+                          }
+  stopCluster(cl)
+  
+  
+  ### * Create summary maps of Diapause results, weighted across cohorts
+  cat("\n### SUMMARY MAP OUTPUT - Diapause ###\n\n", file=Model_rlogging, 
+      append=TRUE)
+  cat("\nSUMMARY MAP OUTPUT - Diapause\n")
+  
+  # Create list of raster brick files 
+  Diap_wtd_fls_nams <- Diap_wtd_fls %>% gsub(".tif","",.)
+  names(Diap_wtd_fls) <- Diap_wtd_fls_nams
+  
+  Diap_wtd_mrgd_brk <- brick() # blank brick to put named raster into
+  j <- 1
+  for (Diap_wtd_fl in Diap_wtd_fls) {
+    Diap_wtd_brk <- lapply(Diap_wtd_fl, function(x) { 
+      brk <- brick(x)
+      type <- unique(str_split_fixed(names(brk), pattern = "_", 3)[,1])
+      names(brk) <- paste(type,dats2,sep="_")
+      return(brk)
+    })
+    Diap_wtd_mrgd_brk <- addLayer(Diap_wtd_mrgd_brk, Diap_wtd_brk)
+  }
+  
+  RegCluster(ncohort)
+  Diap_sum_maps <- foreach(index = 1:nlayers(Diap_wtd_mrgd_brk), 
+                           .packages = pkgs, .inorder = TRUE) %dopar%{
+                             # print(index)
+                             brk <- Diap_wtd_mrgd_brk[[index]] 
+                             nam <- unique(str_split_fixed(names(brk), pattern = "_", 2)[,1])
+                             # print(nam)
+                             dat <- unique(str_split_fixed(names(brk), pattern = "_", 2)[,2])
+                             # print(dat)
+                             brk <- brk + template # adding template ensures NA's are NA's instead of 0
+                             df <- ConvDF(brk)
+                             if(all(df$value == 0)){
+                               nam <- "skip"
+                             }  #probably not interesting to plot
+                             
+                             sp <- paste0(fullname,":")
+                             nicedat <- as.character(format(strptime(dat,format="%Y%m%d"), 
+                                                            format="%m/%d/%Y"))
+                             titl <- case_when(nam == "AttVolt" ~ "Attempted voltinism",
+                                               nam == "FullVolt" ~ "Potential voltinism",
+                                               nam == "Diapause" ~ "Chose to diapause",
+                                               nam == "Mismatch" ~ "Voltinism Mismatch")
+                             titl <- paste(titl, nicedat, sep=" ")
+                             subtitl <- paste("Maps and modeling",format(Sys.Date(),"%m/%d/%Y"),
+                                              "by Oregon State University IPPC USPEST.ORG for SERDP; 
+                                              climate data from OSU PRISM Climate Group")
+                             
+                             
+                             if(nam %in% c("AttVolt", "FullVolt")){
+                               # too many generations is overwhelming on map 
+                               # TODO: add maxgen+ as highest discrete generation value
+                               
+                               plotmax <- max(df$value / 1000)
+                               
+                               if (plotmax <= 3){
+                                 df$value <- as.factor(round(df$value / 1000 / .25) * .25)
+                               }
+                               if (plotmax > 3 & plotmax < 5){
+                                 df$value <- as.factor(round(df$value / 1000 / .5) * .5)
+                               }
+                               # if (plotmax >= 5){
+                               #   df$value[df$value >= 5000] <- 5000
+                               #   df$value <- as.factor(round(df$value / 1000 / .5) * .5)
+                               #   levels(df$value)[length(levels(df$value))] <- 
+                               #     paste0(levels(df$value)[length(levels(df$value))], " or more")
+                               #   plotmax <- 5
+                               # }
+                               if (plotmax >= 5){
+                                 df$value[df$value >= 10000] <- 10000
+                                 df$value <- as.factor(round(df$value / 1000))
+                                 levels(df$value)[length(levels(df$value))] <- 
+                                   paste0(levels(df$value)[length(levels(df$value))], " or more")
+                                 plotmax <- 10
+                               }
+                               
+                               p <- Base_map(df) + 
+                                 scale_fill_viridis(discrete = TRUE, name = "Generations", 
+                                                    begin = 0, end = plotmax/10) +
+                                 # geom_point(data = sites, aes(x = x, y = y), color = "black", size = 3) +
+                                 labs(title = str_wrap(paste(sp,titl), width = 55), 
+                                      subtitle = str_wrap(subtitl, width = 75)) +
+                                 theme_map(base_size = base_size) + mytheme
+                               ggsave(p,file=paste0(nam,"_", dat, ".png"), height = asp * 7, 
+                                      units = c('in'), dpi = 300) 
+                             } 
+                             
+                             if(nam == "Diapause"){
+                               # TODO Diapause map doesn't match lost generations because of pre-diap?
+                               df$value <- df$value / 10 # Percent
+                               
+                               p <- Base_map(df) + 
+                                 scale_fill_viridis(discrete = FALSE, name = "% in Diapause", 
+                                                    begin = 0, end = 1) +
+                                 labs(title = str_wrap(paste(sp,titl), width = 55), 
+                                      subtitle = str_wrap(subtitl, width = 75)) +
+                                 theme_map(base_size = base_size) + mytheme
+                               ggsave(p,file=paste0(nam,"_", dat, ".png"), height = asp * 7, 
+                                      units = c('in'), dpi = 300) 
+                             } 
+                             
+                             if(nam == "Mismatch"){
+                               minmm <- round(min(df$value/1000), 1) - .1
+                               df$value <- df$value / 1000
+                               if(minmm < -4){
+                                 mmbrk <- c(minmm, -4, -3, -2, -1, 0, .25, .5, .75, 1)
+                                 df$value <- cut(df$value, mmbrk)
+                                 cols <- setNames(c("#8c510a", "#bf812d", "#dfc27d", "#f6e8c3", "#f5f5f5", 
+                                                    "#c7eae5", "#80cdc1", "#35978f", "#01665e"), 
+                                                  levels(df$value))
+                               }else{
+                                 mmbrk <- c(-4, -3, -2, -1, 0, .25, .5, .75, 1)
+                                 df$value <- cut(df$value, mmbrk)
+                                 cols <- setNames(c("#bf812d", "#dfc27d", "#f6e8c3", "#f5f5f5", 
+                                                    "#c7eae5", "#80cdc1", "#35978f", "#01665e"), 
+                                                  levels(df$value))
+                               }
+                               
+                               p <- Base_map(df) + 
+                                 # geom_point(data = sites, aes(x = x, y = y), color = "black", size = 3) +
+                                 scale_fill_manual(values = cols, name = "Mismatch") +
+                                 labs(title = str_wrap(paste(sp,titl), width = 55), 
+                                      subtitle = str_wrap(subtitl, width = 75)) +
+                                 theme_map(base_size = base_size) + mytheme
+                               ggsave(p,file=paste0(nam,"_", dat, ".png"), height = asp * 7, 
+                                      units = c('in'), dpi = 300) 
+                             } 
+                           }
+  stopCluster(cl)
+} # close do_photo
+
 
 #### * Lifestage by generation analysis ####
 
