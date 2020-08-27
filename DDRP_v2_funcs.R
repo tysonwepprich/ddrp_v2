@@ -1460,7 +1460,7 @@ PlotMap <- function(r, d, titl, lgd, outfl) {
       }
       
       # Define factor levels to order legend key properly
-      sorted <- unique(as.numeric(df$gen_stg))  
+      sorted <- sort(unique(as.numeric(df$gen_stg)))
       df$gen_stg <- factor(df$gen_stg, levels = sorted)
       
       # Make the color key for the legend 

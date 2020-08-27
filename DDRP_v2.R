@@ -188,7 +188,7 @@ if (!is.na(opts[1])) {
   spp           <- "GCA" # Default species to use
   forecast_data <- "PRISM" # Forecast data to use (PRISM or NMME)
   start_year    <- 2017 # Year to use
-  start_doy     <- 150 # Start day of year          
+  start_doy     <- 1 # Start day of year          
   end_doy       <- 365 # End day of year - need 365 if voltinism map 
   keep_leap     <- 0 # Should leap year be kept?
   region_param  <- "OR" # Default REGION to use
